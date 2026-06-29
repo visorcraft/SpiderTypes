@@ -1569,6 +1569,13 @@ function closeSettingsModal() {
 function renderLevelModal() {
   dom.levelGrid.innerHTML = "";
   LEVELS.forEach((level, index) => {
+    if (level.id > 20 && (level.id - 1) % 20 === 0) {
+      const divider = document.createElement("div");
+      divider.className = "level-chapter-divider";
+      divider.style.gridColumn = "1 / -1";
+      divider.innerHTML = `<span>Chapter ${Math.floor((level.id - 1) / 20) + 1}</span>`;
+      dom.levelGrid.appendChild(divider);
+    }
     const unlocked = level.id <= state.save.unlocked;
     const best = Number(state.save.bestTimes[String(level.id)]) || 0;
     const button = document.createElement("button");
