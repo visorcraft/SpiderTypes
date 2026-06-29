@@ -8,6 +8,7 @@
       content="Itsy Bitsy Spider home-row typing game built with Three.js and browser localStorage."
     />
     <title>Spider Types — Help Spider Climb!</title>
+    <link rel="icon" href='data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"%3E%3Ccircle cx="16" cy="16" r="12" fill="%23ffd36a"/%3E%3Ccircle cx="12" cy="13" r="2" fill="%230a0f18"/%3E%3Ccircle cx="20" cy="13" r="2" fill="%230a0f18"/%3E%3Cpath d="M11 20c3 3 7 3 10 0" fill="none" stroke="%230a0f18" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E' />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
@@ -22,8 +23,16 @@
         <div id="sceneMount" class="scene-mount"></div>
 
         <div class="scene-topbar">
-          <button id="levelSelectButton" class="button ghost" type="button">Level Selection</button>
-          <button id="skipIntroButton" class="button ghost subtle" type="button">Skip Intro</button>
+          <div class="topbar-group">
+            <button id="levelSelectButton" class="button ghost" type="button">Level Selection</button>
+            <button id="restartButton" class="button ghost" type="button">Restart</button>
+          </div>
+          <div class="topbar-group">
+            <button id="soundToggleButton" class="button ghost" type="button" aria-pressed="true">Sound On</button>
+            <button id="motionToggleButton" class="button ghost" type="button" aria-pressed="false">Motion On</button>
+            <button id="pauseButton" class="button ghost" type="button" aria-pressed="false">Pause</button>
+            <button id="skipIntroButton" class="button ghost subtle" type="button">Skip Intro</button>
+          </div>
         </div>
 
         <div id="cameraCaption" class="camera-caption" aria-live="polite">
@@ -59,6 +68,14 @@
             <small>accuracy</small>
           </div>
           <div>
+            <span id="wpmDisplay">0</span>
+            <small>wpm</small>
+          </div>
+          <div>
+            <span id="streakDisplay">0</span>
+            <small>streak</small>
+          </div>
+          <div>
             <span id="remainingDisplay">0</span>
             <small>keys left</small>
           </div>
@@ -71,6 +88,7 @@
         <section class="target-card" aria-label="Current key to type">
           <span class="target-label">Type this key</span>
           <strong id="targetKey" class="target-key">f</strong>
+          <span id="nextChunk" class="next-chunk">ffff</span>
           <span id="feedback" class="feedback">Correct keys help the spider climb.</span>
         </section>
 
@@ -111,6 +129,8 @@
         <h2 id="endTitle">The spider reached the top.</h2>
         <p id="endMessage">Down came the rain and washed the spider out.</p>
         <div id="endStats" class="end-stats"></div>
+        <div id="endCoach" class="end-coach"></div>
+        <div id="endReview" class="end-review hidden"></div>
         <div class="end-actions">
           <button id="retryButton" class="button secondary" type="button">Retry Level</button>
           <button id="nextButton" class="button primary" type="button">Next Level</button>

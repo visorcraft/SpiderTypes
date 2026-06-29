@@ -11,10 +11,16 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const STORAGE_KEY = "itsy-bitsy-spider-home-row:v1";
+const DEFAULT_SETTINGS = {
+  sound: true,
+  reducedMotion: false
+};
 const INTRO_DURATION_MS = 5200;
 const PRE_WASH_MS = 720;
 const WASH_DURATION_MS = 3300;
 const MAX_PIXEL_RATIO = 1.75;
+const KEY_FLASH_MS = 240;
+const MISSED_REVIEW_LIMIT = 5;
 const CELEBRATION_FIREWORK_INTERVAL_MS = 650;
 const CELEBRATION_FIREWORK_BURSTS = 5;
 const CELEBRATION_CAMERA_SWEEP_X = 1.45;
@@ -166,6 +172,10 @@ const dom = {
   sceneMount: document.getElementById("sceneMount"),
   levelSelectButton: document.getElementById("levelSelectButton"),
   endLevelSelectButton: document.getElementById("endLevelSelectButton"),
+  restartButton: document.getElementById("restartButton"),
+  soundToggleButton: document.getElementById("soundToggleButton"),
+  motionToggleButton: document.getElementById("motionToggleButton"),
+  pauseButton: document.getElementById("pauseButton"),
   skipIntroButton: document.getElementById("skipIntroButton"),
   cameraCaption: document.getElementById("cameraCaption"),
   levelLabel: document.getElementById("levelLabel"),
@@ -175,10 +185,13 @@ const dom = {
   bestDisplay: document.getElementById("bestDisplay"),
   progressBar: document.getElementById("progressBar"),
   targetKey: document.getElementById("targetKey"),
+  nextChunk: document.getElementById("nextChunk"),
   feedback: document.getElementById("feedback"),
   lessonText: document.getElementById("lessonText"),
   mistakeCount: document.getElementById("mistakeCount"),
   accuracyDisplay: document.getElementById("accuracyDisplay"),
+  wpmDisplay: document.getElementById("wpmDisplay"),
+  streakDisplay: document.getElementById("streakDisplay"),
   remainingDisplay: document.getElementById("remainingDisplay"),
   keyboard: document.getElementById("keyboard"),
   levelModal: document.getElementById("levelModal"),
@@ -191,6 +204,8 @@ const dom = {
   endTitle: document.getElementById("endTitle"),
   endMessage: document.getElementById("endMessage"),
   endStats: document.getElementById("endStats"),
+  endCoach: document.getElementById("endCoach"),
+  endReview: document.getElementById("endReview"),
   retryButton: document.getElementById("retryButton"),
   nextButton: document.getElementById("nextButton")
 };
@@ -203,7 +218,13 @@ const state = {
   charIndex: 0,
   mistakes: 0,
   totalKeys: 0,
+  streak: 0,
+  bestStreak: 0,
+  missedKeys: {},
   startTime: 0,
+  paused: false,
+  pauseStarted: 0,
+  pausedMs: 0,
   finishMs: 0,
   newBest: false,
   slipPenaltyChars: 0,
@@ -216,7 +237,8 @@ const state = {
   wrongFlashTimer: 0,
   save: {
     unlocked: 1,
-    bestTimes: {}
+    bestTimes: {},
+    settings: { ...DEFAULT_SETTINGS }
   }
 };
 
@@ -294,6 +316,38 @@ function normalizeKey(eventOrCharacter) {
   return raw.toLowerCase();
 }
 
+function soundEnabled() {
+  return state.save.settings.sound;
+}
+
+function reducedMotionEnabled() {
+  return state.save.settings.reducedMotion;
+}
+
+function elapsedLevelMs(now = performance.now()) {
+  if (!state.startTime) return 0;
+  const activePauseMs = state.paused ? now - state.pauseStarted : 0;
+  return Math.max(0, now - state.startTime - state.pausedMs - activePauseMs);
+}
+
+function currentWpm(now = performance.now()) {
+  const elapsedMs = state.finishMs || elapsedLevelMs(now);
+  if (!state.finishMs && elapsedMs < 1000) return 0;
+  return Math.round((state.charIndex / 5) / (elapsedMs / 60000));
+}
+
+function nextChunkLabel(lesson, index) {
+  if (index >= lesson.length) return "complete";
+
+  const remaining = lesson.slice(index);
+  if (remaining[0] === " ") {
+    const nextWord = remaining.slice(1).trimStart().match(/^\S+/)?.[0] || "";
+    return nextWord ? `space then ${nextWord}` : "space";
+  }
+
+  return remaining.match(/^\S+/)?.[0] || displayChar(remaining[0]);
+}
+
 function loadSave() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -302,6 +356,11 @@ function loadSave() {
     if (parsed && typeof parsed === "object") {
       state.save.unlocked = clamp(Number(parsed.unlocked) || 1, 1, LEVELS.length);
       state.save.bestTimes = parsed.bestTimes && typeof parsed.bestTimes === "object" ? parsed.bestTimes : {};
+      const parsedSettings = parsed.settings && typeof parsed.settings === "object" ? parsed.settings : {};
+      state.save.settings = {
+        sound: parsedSettings.sound !== false,
+        reducedMotion: parsedSettings.reducedMotion === true
+      };
     }
   } catch (error) {
     console.warn("Could not read saved typing progress:", error);
@@ -319,38 +378,55 @@ function saveProgress() {
 // --- Music box: the full song loops quietly in the background while a level is being played, and
 // stops when the level is done. Constructed at boot so its reverb impulse is ready before playback. ---
 let musicBox = null;
+let musicLoadPromise = null;
 let musicActive = false;
 let musicLoopTimer = null;
 const MUSIC_LOOP_GAP_MS = 5000;
 
 async function loadMusic() {
+  if (musicBox) return musicBox;
   try {
     const { createItsyBitsyMusicBox } = await import("./spiderMusicBox.js");
     // Loop for the duration of the level, with a 5s silence between repeats.
     musicBox = createItsyBitsyMusicBox({
       onEnded: () => {
-        if (!musicActive) return;
+        if (!musicActive || !soundEnabled()) return;
         musicLoopTimer = window.setTimeout(() => {
           musicLoopTimer = null;
-          if (musicActive) musicBox.playFullSong().catch(() => {});
+          if (musicActive && soundEnabled()) musicBox.playFullSong().catch(() => {});
         }, MUSIC_LOOP_GAP_MS);
       }
     });
+    return musicBox;
   } catch (error) {
     console.warn("Music unavailable:", error);
+    return null;
   }
 }
 
+function ensureMusicLoaded() {
+  if (musicBox) return Promise.resolve(musicBox);
+  if (!musicLoadPromise) {
+    musicLoadPromise = loadMusic().finally(() => {
+      if (!musicBox) musicLoadPromise = null;
+    });
+  }
+  return musicLoadPromise;
+}
+
 function startLevelMusic() {
-  if (!musicBox || musicActive) return;
+  if (musicActive || !soundEnabled() || state.paused) return;
   musicActive = true;
-  // playFullSong() awaits Tone.start() internally; called from a keystroke so audio is permitted.
-  musicBox.playFullSong().catch(() => {});
+  ensureMusicLoaded().then((box) => {
+    if (!box || !musicActive || !soundEnabled() || state.paused) return;
+    // playFullSong() awaits Tone.start() internally; called from a user action so audio is permitted.
+    box.playFullSong().catch(() => {});
+  });
 }
 
 function stopLevelMusic() {
-  if (!musicBox) return;
   musicActive = false;
+  if (!musicBox) return;
   if (musicLoopTimer !== null) {
     window.clearTimeout(musicLoopTimer);
     musicLoopTimer = null;
@@ -362,10 +438,10 @@ function bootstrap() {
   loadSave();
   buildKeyboard();
   bindEvents();
+  applySettings();
   initThree();
   buildWorld();
   initLevel(0, { playIntro: true });
-  loadMusic();
   requestAnimationFrame(animate);
 }
 
@@ -393,6 +469,24 @@ function bindEvents() {
 
   dom.levelSelectButton.addEventListener("click", openLevelModal);
   dom.endLevelSelectButton.addEventListener("click", openLevelModal);
+  dom.restartButton.addEventListener("click", () => {
+    initLevel(state.levelIndex, { playIntro: false });
+  });
+  dom.pauseButton.addEventListener("click", togglePause);
+  dom.soundToggleButton.addEventListener("click", () => {
+    state.save.settings.sound = !state.save.settings.sound;
+    saveProgress();
+    applySettings();
+    if (soundEnabled() && state.mode === "playing" && state.startTime && !state.paused) {
+      startLevelMusic();
+    }
+  });
+  dom.motionToggleButton.addEventListener("click", () => {
+    state.save.settings.reducedMotion = !state.save.settings.reducedMotion;
+    saveProgress();
+    applySettings();
+    if (reducedMotionEnabled()) clearFireworks();
+  });
   dom.closeLevelModal.addEventListener("click", closeLevelModal);
   dom.closeLevelModalBottom.addEventListener("click", closeLevelModal);
 
@@ -436,8 +530,52 @@ function bindEvents() {
       state.mode = "playing";
       dom.skipIntroButton.style.display = "none";
       dom.cameraCaption.textContent = "Type the glowing key to help the baby spider climb.";
+      updateTopControls();
     }
   });
+}
+
+function applySettings() {
+  document.body.classList.toggle("reduce-motion", reducedMotionEnabled());
+  updateTopControls();
+  if (!soundEnabled()) stopLevelMusic();
+}
+
+function updateTopControls() {
+  dom.soundToggleButton.textContent = soundEnabled() ? "Sound On" : "Sound Off";
+  dom.soundToggleButton.setAttribute("aria-pressed", String(soundEnabled()));
+
+  dom.motionToggleButton.textContent = reducedMotionEnabled() ? "Motion Low" : "Motion On";
+  dom.motionToggleButton.setAttribute("aria-pressed", String(reducedMotionEnabled()));
+
+  const canPause = state.mode === "playing";
+  dom.pauseButton.disabled = !canPause;
+  dom.pauseButton.textContent = state.paused ? "Resume" : "Pause";
+  dom.pauseButton.setAttribute("aria-pressed", String(state.paused));
+  document.body.classList.toggle("is-paused", state.paused);
+}
+
+function togglePause() {
+  if (state.mode !== "playing") return;
+
+  const now = performance.now();
+  if (state.paused) {
+    state.paused = false;
+    state.pausedMs += now - state.pauseStarted;
+    state.pauseStarted = 0;
+    dom.feedback.className = "feedback";
+    dom.feedback.textContent = "Keep climbing.";
+    if (state.startTime) startLevelMusic();
+  } else {
+    state.paused = true;
+    state.pauseStarted = now;
+    stopLevelMusic();
+    dom.feedback.className = "feedback";
+    dom.feedback.textContent = "Paused.";
+  }
+
+  updateTopControls();
+  updateTimerDisplay();
 }
 
 function buildKeyboard() {
@@ -1110,7 +1248,13 @@ function initLevel(index, options = {}) {
   state.charIndex = 0;
   state.mistakes = 0;
   state.totalKeys = 0;
+  state.streak = 0;
+  state.bestStreak = 0;
+  state.missedKeys = {};
   state.startTime = 0;
+  state.paused = false;
+  state.pauseStarted = 0;
+  state.pausedMs = 0;
   state.finishMs = 0;
   state.newBest = false;
   state.slipPenaltyChars = 0;
@@ -1122,8 +1266,11 @@ function initLevel(index, options = {}) {
   state.wrongFlashTimer = 0;
   state.mode = playIntro ? "intro" : "playing";
   state.introStart = performance.now();
+  musicBox?.resetTypedMelody();
 
   dom.endOverlay.classList.add("hidden");
+  dom.endCoach.replaceChildren();
+  dom.endReview.classList.add("hidden");
   dom.feedback.className = "feedback";
   dom.feedback.textContent = playIntro
     ? "Watch the camera follow the water spout down to the baby spider."
@@ -1142,6 +1289,7 @@ function initLevel(index, options = {}) {
   if (world.friends) world.friends.visible = false;
   clearFireworks();
   positionSpider(0);
+  updateTopControls();
   renderHud();
 }
 
@@ -1156,6 +1304,7 @@ function currentText() {
 function handleTypedKey(key) {
   if (state.mode === "intro") return;
   if (state.mode !== "playing") return;
+  if (state.paused) return;
 
   const lesson = currentText();
   const expected = lesson[state.charIndex];
@@ -1168,7 +1317,10 @@ function handleTypedKey(key) {
   state.totalKeys += 1;
 
   if (key === expected) {
+    flashKeyboardKey(key, "hit");
     state.charIndex += 1;
+    state.streak += 1;
+    state.bestStreak = Math.max(state.bestStreak, state.streak);
     state.slipPenaltyChars = Math.max(0, state.slipPenaltyChars - 0.72);
     dom.feedback.className = "feedback good";
     dom.feedback.textContent = encouragementForProgress();
@@ -1177,11 +1329,17 @@ function handleTypedKey(key) {
       completeLevel();
     }
   } else {
+    flashKeyboardKey(key, "miss");
     state.mistakes += 1;
+    state.streak = 0;
+    state.missedKeys[expected] = (state.missedKeys[expected] || 0) + 1;
     state.slipPenaltyChars = Math.min(lesson.length * 0.24, state.slipPenaltyChars + Math.max(1.2, lesson.length * 0.035));
     state.wrongFlashTimer = performance.now();
     dom.feedback.className = "feedback bad";
     dom.feedback.textContent = `Oops. The spider slipped. Type ${displayChar(expected)} next.`;
+    if (soundEnabled()) {
+      ensureMusicLoaded().then((box) => box?.playGentleMiss().catch(() => {}));
+    }
     pulsePanel("bad-shake");
   }
 
@@ -1196,6 +1354,20 @@ function pulsePanel(className) {
   panel.classList.add(className);
 }
 
+function flashKeyboardKey(key, result) {
+  const button = Array.from(dom.keyboard.querySelectorAll("button[data-key]"))
+    .find((candidate) => candidate.dataset.key === key);
+  if (!button) return;
+
+  window.clearTimeout(button._flashTimer);
+  button.classList.remove("hit-press", "miss-press");
+  void button.offsetWidth;
+  button.classList.add(result === "hit" ? "hit-press" : "miss-press");
+  button._flashTimer = window.setTimeout(() => {
+    button.classList.remove("hit-press", "miss-press");
+  }, KEY_FLASH_MS);
+}
+
 function encouragementForProgress() {
   const progress = state.charIndex / currentText().length;
   if (progress >= 1) return "Top of the spout!";
@@ -1208,7 +1380,7 @@ function encouragementForProgress() {
 function completeLevel() {
   stopLevelMusic();
   const now = performance.now();
-  state.finishMs = Math.max(1, now - (state.startTime || now));
+  state.finishMs = Math.max(1, elapsedLevelMs(now));
 
   const key = String(currentLevel().id);
   const previousBest = Number(state.save.bestTimes[key]) || 0;
@@ -1261,6 +1433,7 @@ function finishWash() {
   if (world.washWater) world.washWater.visible = false;
   if (world.sun) world.sun.visible = true;
   dom.cameraCaption.textContent = "Up came the sun, and dried up all the rain.";
+  updateTopControls();
   showEndOverlay(false);
 }
 
@@ -1275,13 +1448,17 @@ function startCelebration(now) {
   dom.feedback.className = "feedback good";
   dom.feedback.textContent = "The spider made it! Friends are celebrating at the roof.";
   dom.cameraCaption.textContent = "The spider finally made it. Friends and fireworks fill the roof.";
-  musicBox?.playFullSong().catch(() => {}); // the full music-box song plays the spider home
+  if (soundEnabled()) {
+    ensureMusicLoaded().then((box) => box?.playFullSong().catch(() => {})); // the full music-box song plays the spider home
+  }
+  updateTopControls();
   showEndOverlay(true);
 }
 
 function showEndOverlay(isFinal) {
   const accuracy = state.totalKeys > 0 ? Math.round((state.charIndex / state.totalKeys) * 100) : 100;
   const levelNumber = currentLevel().id;
+  const wpm = state.finishMs > 0 ? Math.round((state.charIndex / 5) / (state.finishMs / 60000)) : 0;
 
   dom.endKicker.textContent = isFinal ? "Celebration!" : "Washed out!";
   dom.endTitle.textContent = isFinal ? "The spider finally made it!" : `Level ${levelNumber} complete`;
@@ -1291,19 +1468,83 @@ function showEndOverlay(isFinal) {
 
   dom.endStats.innerHTML = [
     `<div class="end-stat"><strong>${formatTime(state.finishMs)}</strong><span>time</span></div>`,
+    `<div class="end-stat"><strong>${wpm}</strong><span>wpm</span></div>`,
     `<div class="end-stat"><strong>${state.mistakes}</strong><span>misses</span></div>`,
     `<div class="end-stat"><strong>${accuracy}%</strong><span>accuracy</span></div>`,
+    `<div class="end-stat"><strong>${state.bestStreak}</strong><span>best streak</span></div>`,
     `<div class="end-stat"><strong>${state.newBest ? "yes" : "no"}</strong><span>new PB</span></div>`
   ].join("");
+
+  const missed = Object.entries(state.missedKeys)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MISSED_REVIEW_LIMIT);
+  renderCoachNote({ accuracy, wpm, missed, isFinal });
+  if (missed.length > 0) {
+    const keys = missed
+      .map(([key, count]) => `<span>${htmlEscape(displayChar(key))}${count > 1 ? ` x${count}` : ""}</span>`)
+      .join("");
+    dom.endReview.innerHTML = `<strong>Practice next</strong><div>${keys}</div>`;
+    dom.endReview.classList.remove("hidden");
+  } else {
+    dom.endReview.innerHTML = "";
+    dom.endReview.classList.add("hidden");
+  }
 
   dom.nextButton.textContent = isFinal ? "Watch Celebration" : "Next Level";
   dom.endOverlay.classList.remove("hidden");
 }
 
+function renderCoachNote({ accuracy, wpm, missed, isFinal }) {
+  const hardestKey = missed.length > 0 ? displayChar(missed[0][0]) : "";
+  const note = {
+    title: "Steady climb",
+    body: "Keep your eyes on the glowing key and let accuracy pull the spider upward.",
+    kind: "steady"
+  };
+
+  if (state.mistakes === 0) {
+    note.title = "Clean climb";
+    note.body = state.newBest
+      ? "No misses and a new personal best. Move on while the rhythm is fresh."
+      : "No misses this time. Try the next level or replay once for a smoother rhythm.";
+    note.kind = "strong";
+  } else if (accuracy >= 92 && state.bestStreak >= Math.ceil(currentText().length * 0.45)) {
+    note.title = "Strong rhythm";
+    note.body = hardestKey
+      ? `Great streak work. Give ${hardestKey} one calm look before the next climb.`
+      : "Great streak work. Carry that same pace into the next climb.";
+    note.kind = "strong";
+  } else if (accuracy < 82) {
+    note.title = "Accuracy first";
+    note.body = hardestKey
+      ? `Slow down and watch ${hardestKey}; one clean key matters more than speed.`
+      : "Slow down and make each key deliberate before trying for speed.";
+    note.kind = "focus";
+  } else if (wpm > 0 && wpm < 8) {
+    note.title = "Build flow";
+    note.body = "The keys are landing. Next time, keep a gentle rhythm between letters.";
+  } else if (hardestKey) {
+    note.title = "Next tiny goal";
+    note.body = `Start the next climb by finding ${hardestKey} before you type.`;
+    note.kind = "focus";
+  }
+
+  if (isFinal && state.mistakes === 0) {
+    note.body = "No misses on the final climb. The spider earned a calm celebration.";
+  }
+
+  dom.endCoach.className = `end-coach ${note.kind}`;
+  dom.endCoach.replaceChildren();
+
+  const title = document.createElement("strong");
+  title.textContent = note.title;
+  const body = document.createElement("span");
+  body.textContent = note.body;
+  dom.endCoach.append(title, body);
+}
+
 function renderHud() {
   const level = currentLevel();
-  // Levels 4+ hide the "Type this key" card and let the lesson text fill its space.
-  document.body.classList.toggle("hide-target", level.id >= 4);
   const lesson = currentText();
   const expected = lesson[state.charIndex] || "";
   const best = Number(state.save.bestTimes[String(level.id)]) || 0;
@@ -1316,12 +1557,16 @@ function renderHud() {
   dom.lessonFocus.textContent = level.focus;
   dom.bestDisplay.textContent = `PB: ${formatTime(best)}`;
   dom.targetKey.textContent = displayChar(expected || "✓");
+  dom.nextChunk.textContent = nextChunkLabel(lesson, state.charIndex);
   dom.mistakeCount.textContent = String(state.mistakes);
   dom.accuracyDisplay.textContent = `${accuracy}%`;
+  dom.wpmDisplay.textContent = String(currentWpm());
+  dom.streakDisplay.textContent = String(state.streak);
   dom.remainingDisplay.textContent = String(remaining);
   dom.progressBar.style.width = `${Math.round((state.charIndex / lesson.length) * 100)}%`;
 
   updateTimerDisplay();
+  updateTopControls();
   renderLessonText();
   updateKeyboardHighlight(expected);
 }
@@ -1336,26 +1581,46 @@ function renderLessonText() {
     else if (i === state.charIndex) classes.push("current");
     else classes.push("upcoming");
     if (ch === " ") classes.push("space-char");
-    html += `<span class="${classes.join(" ")}" aria-label="${ch === " " ? "space" : htmlEscape(ch)}">${htmlEscape(displayLessonChar(ch))}</span>`;
+    html += `<span class="${classes.join(" ")}" data-index="${i}" aria-label="${ch === " " ? "space" : htmlEscape(ch)}">${htmlEscape(displayLessonChar(ch))}</span>`;
   }
   dom.lessonText.innerHTML = html;
+  scrollCurrentCharacterIntoView();
+}
+
+function scrollCurrentCharacterIntoView() {
+  const current = dom.lessonText.querySelector(".current");
+  if (!current) return;
+  const scroller = current.closest(".lesson-text-card");
+  if (!scroller) return;
+
+  const targetLeft = Math.max(0, current.offsetLeft - (scroller.clientWidth - current.clientWidth) / 2);
+  const targetTop = Math.max(0, current.offsetTop - (scroller.clientHeight - current.clientHeight) / 2);
+  scroller.scrollTo({
+    left: targetLeft,
+    top: targetTop,
+    behavior: reducedMotionEnabled() ? "auto" : "smooth"
+  });
 }
 
 function updateKeyboardHighlight(expected) {
   const buttons = dom.keyboard.querySelectorAll("button[data-key]");
   buttons.forEach((button) => {
     button.classList.toggle("current", button.dataset.key === expected);
+    button.classList.toggle("missed", Boolean(state.missedKeys[button.dataset.key]));
+    button.setAttribute("aria-current", button.dataset.key === expected ? "true" : "false");
   });
 }
 
 function updateTimerDisplay() {
   if (state.startTime && state.mode === "playing") {
-    dom.timerDisplay.textContent = formatTime(performance.now() - state.startTime);
+    dom.timerDisplay.textContent = formatTime(elapsedLevelMs());
   } else if (state.finishMs) {
     dom.timerDisplay.textContent = formatTime(state.finishMs);
   } else {
     dom.timerDisplay.textContent = "0.00s";
   }
+
+  dom.wpmDisplay.textContent = String(currentWpm());
 }
 
 function openLevelModal() {
@@ -1417,6 +1682,7 @@ function updateMode(nowMs) {
       dom.feedback.className = "feedback";
       dom.feedback.textContent = "Type the glowing key to help the baby spider climb.";
       dom.cameraCaption.textContent = "The camera found the baby spider. Start typing to climb.";
+      updateTopControls();
     } else if (t > 0.66) {
       dom.cameraCaption.textContent = "Following the slanted water spout down to the ground...";
     } else if (t > 0.3) {
@@ -1468,10 +1734,11 @@ function positionSpider(progress, nowMs = 0) {
 
   const time = nowMs || performance.now();
   const outward = world.spoutOutward;
+  const reduceMotion = reducedMotionEnabled();
 
   // The anchor origin stays on the spout centerline; the model itself is offset
   // along the anchor's local -Z so the spider sits on the visible side of the pipe.
-  const bob = Math.sin(time * 0.012) * 0.015;
+  const bob = reduceMotion ? 0 : Math.sin(time * 0.012) * 0.015;
   world.spider.position.copy(pos).add(outward.clone().multiplyScalar(bob));
 
   // Align anchor +Y with the spout direction and anchor -Z with outward (camera).
@@ -1480,8 +1747,8 @@ function positionSpider(progress, nowMs = 0) {
   const q = new THREE.Quaternion().setFromRotationMatrix(base);
 
   // Tiny wiggle around the spout axis (local Y) and toward/away from the pipe (local X).
-  const roll = Math.sin(time * 0.007) * 0.03;
-  const pitch = Math.sin(time * 0.004) * 0.035;
+  const roll = reduceMotion ? 0 : Math.sin(time * 0.007) * 0.03;
+  const pitch = reduceMotion ? 0 : Math.sin(time * 0.004) * 0.035;
   q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), roll));
   q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), pitch));
 
@@ -1522,8 +1789,8 @@ function updateCamera(nowMs, dt) {
 
   if (state.mode === "celebrating") {
     const celebrationSeconds = (nowMs - state.celebrationStart) / 1000;
-    const sweep = Math.sin(celebrationSeconds * 0.52);
-    const drift = Math.cos(celebrationSeconds * 0.34);
+    const sweep = reducedMotionEnabled() ? 0 : Math.sin(celebrationSeconds * 0.52);
+    const drift = reducedMotionEnabled() ? 0 : Math.cos(celebrationSeconds * 0.34);
     desired.set(1.3 + sweep * CELEBRATION_CAMERA_SWEEP_X, 4.15 + Math.sin(celebrationSeconds * 0.76) * 0.12, 8.15 + drift * 0.28);
     lookAt.copy(world.spoutEnd).add(new THREE.Vector3(-0.05 + sweep * 0.32, 0.25, 0.25));
   } else if (state.mode === "complete") {
@@ -1568,20 +1835,22 @@ function updateRain(dt) {
 }
 
 function updateCelebration(nowMs, dt) {
+  const reduceMotion = reducedMotionEnabled();
+
   if (world.sun) {
-    const pulse = 1 + Math.sin(nowMs * 0.0025) * 0.035;
+    const pulse = reduceMotion ? 1 : 1 + Math.sin(nowMs * 0.0025) * 0.035;
     world.sun.scale.setScalar((state.mode === "celebrating" ? 1.2 : 0.95) * pulse);
-    world.sun.rotation.z += dt * 0.35;
+    if (!reduceMotion) world.sun.rotation.z += dt * 0.35;
   }
 
-  if (world.friends && world.friends.visible) {
+  if (world.friends && world.friends.visible && !reduceMotion) {
     world.friends.children.forEach((friend, index) => {
       friend.position.y += Math.sin(nowMs * 0.006 + index * 1.7) * 0.0009;
       friend.rotation.z += Math.sin(nowMs * 0.004 + index) * 0.0009;
     });
   }
 
-  if (state.mode === "celebrating") {
+  if (state.mode === "celebrating" && !reducedMotionEnabled()) {
     if (nowMs - state.lastFireworkAt > CELEBRATION_FIREWORK_INTERVAL_MS) {
       for (let i = 0; i < CELEBRATION_FIREWORK_BURSTS; i += 1) {
         spawnFirework();
