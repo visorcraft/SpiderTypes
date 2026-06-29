@@ -9,11 +9,13 @@
 
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { LEVELS } from "./levels.js";
 
 const STORAGE_KEY = "itsy-bitsy-spider-home-row:v1";
 const DEFAULT_SETTINGS = {
   sound: true,
-  reducedMotion: false
+  reducedMotion: false,
+  layout: "bottom"
 };
 const INTRO_DURATION_MS = 5200;
 const PRE_WASH_MS = 720;
@@ -35,129 +37,6 @@ const SPIDER_TARGET_HEIGHT = 0.47025; // world units; another 10% smaller
 const SPIDER_FACING_OFFSET_Y = 0; // set to Math.PI if the model faces away from the camera
 const SPIDER_SPOUT_OFFSET = 0.03; // distance from spout centerline so legs sit near the pipe surface
 
-const LEVELS = [
-  {
-    id: 1,
-    title: "F and J bumps",
-    focus: "Rest your pointer fingers on F and J. Feel the little bumps, then type in order.",
-    text: "ffff jjjj fjfj jfjf"
-  },
-  {
-    id: 2,
-    title: "Left home row",
-    focus: "Left hand home row: A S D F. Keep fingers resting on their homes.",
-    text: "aaaa ssss dddd ffff asdf fdsa"
-  },
-  {
-    id: 3,
-    title: "Right home row",
-    focus: "Right hand home row: J K L ;. Keep J under your pointer finger.",
-    text: "jjjj kkkk llll ;;;; jkl; ;lkj"
-  },
-  {
-    id: 4,
-    title: "All home row keys",
-    focus: "Use both hands together. Watch the next key, not your hands.",
-    text: "asdf jkl; asdf jkl; a; sl dk fj"
-  },
-  {
-    id: 5,
-    title: "Home row words",
-    focus: "The spider climbs on short words made mostly from the home row.",
-    text: "dad sad lad all fall ask flask salad"
-  },
-  {
-    id: 6,
-    title: "Tiny phrases",
-    focus: "Add spaces between words. Space is part of the lesson.",
-    text: "a lad asks dad as jill falls"
-  },
-  {
-    id: 7,
-    title: "Add E and I",
-    focus: "Reach up for E and I, then return to home row after each reach.",
-    text: "jill sees a seed fall"
-  },
-  {
-    id: 8,
-    title: "Add R and U",
-    focus: "Reach up for R and U. The baby spider is learning to stretch.",
-    text: "the spider feels the sun"
-  },
-  {
-    id: 9,
-    title: "Rain words",
-    focus: "Keep the rhythm steady when the rain words get longer.",
-    text: "rain runs down the old spout"
-  },
-  {
-    id: 10,
-    title: "Hold fast",
-    focus: "Home row is your anchor while your fingers travel to other keys.",
-    text: "the baby spider holds fast"
-  },
-  {
-    id: 11,
-    title: "Up the spout",
-    focus: "Short repeated words help build flow and confidence.",
-    text: "up up up goes the tiny spider"
-  },
-  {
-    id: 12,
-    title: "A wave to a moth",
-    focus: "The spider imagines friendly faces near the roof.",
-    text: "the spider will wave to a moth"
-  },
-  {
-    id: 13,
-    title: "Meet a snail",
-    focus: "Longer phrases ask for calm hands and clear eyes.",
-    text: "the spider hopes to meet a snail"
-  },
-  {
-    id: 14,
-    title: "Kind memories",
-    focus: "Try to type smoothly without rushing. Kindness beats speed.",
-    text: "the spider kindly recalls soft rain"
-  },
-  {
-    id: 15,
-    title: "Near the roof",
-    focus: "The roof is getting closer. Let accuracy pull the spider upward.",
-    text: "a friendly ant waits near the roof"
-  },
-  {
-    id: 16,
-    title: "Cozy web",
-    focus: "Now type a whole sentence with a period at the end.",
-    text: "the spider plans to build a cozy web."
-  },
-  {
-    id: 17,
-    title: "Shared snack",
-    focus: "Comma practice appears in a friendly sentence.",
-    text: "at the top, the spider will share a snack."
-  },
-  {
-    id: 18,
-    title: "Sun after rain",
-    focus: "Longer sentences reward steady home-row returns.",
-    text: "the sun dries the rain and warms the roof."
-  },
-  {
-    id: 19,
-    title: "Climb again",
-    focus: "Last rainy climb. Stay calm through the whole sentence.",
-    text: "friends cheer as the spider climbs again."
-  },
-  {
-    id: 20,
-    title: "Celebration at the roof",
-    focus: "Final climb. This time the spider reaches the roof and stays there.",
-    text: "the spider reaches the roof and dances with kind friends."
-  }
-];
-
 const KEY_ROWS = [
   ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
   ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
@@ -170,11 +49,13 @@ const BUMP_KEYS = new Set(["f", "j"]);
 
 const dom = {
   sceneMount: document.getElementById("sceneMount"),
-  levelSelectButton: document.getElementById("levelSelectButton"),
+  settingsButton: document.getElementById("settingsButton"),
   endLevelSelectButton: document.getElementById("endLevelSelectButton"),
   restartButton: document.getElementById("restartButton"),
   soundToggleButton: document.getElementById("soundToggleButton"),
   motionToggleButton: document.getElementById("motionToggleButton"),
+  layoutBottomButton: document.getElementById("layoutBottomButton"),
+  layoutSideButton: document.getElementById("layoutSideButton"),
   pauseButton: document.getElementById("pauseButton"),
   skipIntroButton: document.getElementById("skipIntroButton"),
   cameraCaption: document.getElementById("cameraCaption"),
@@ -197,6 +78,10 @@ const dom = {
   levelModal: document.getElementById("levelModal"),
   closeLevelModal: document.getElementById("closeLevelModal"),
   closeLevelModalBottom: document.getElementById("closeLevelModalBottom"),
+  settingsModal: document.getElementById("settingsModal"),
+  closeSettingsModal: document.getElementById("closeSettingsModal"),
+  closeSettingsModalBottom: document.getElementById("closeSettingsModalBottom"),
+  openLevelFromSettings: document.getElementById("openLevelFromSettings"),
   levelGrid: document.getElementById("levelGrid"),
   clearScoresButton: document.getElementById("clearScoresButton"),
   endOverlay: document.getElementById("endOverlay"),
@@ -324,6 +209,10 @@ function reducedMotionEnabled() {
   return state.save.settings.reducedMotion;
 }
 
+function layoutMode() {
+  return state.save.settings.layout === "side" ? "side" : "bottom";
+}
+
 function elapsedLevelMs(now = performance.now()) {
   if (!state.startTime) return 0;
   const activePauseMs = state.paused ? now - state.pauseStarted : 0;
@@ -359,7 +248,8 @@ function loadSave() {
       const parsedSettings = parsed.settings && typeof parsed.settings === "object" ? parsed.settings : {};
       state.save.settings = {
         sound: parsedSettings.sound !== false,
-        reducedMotion: parsedSettings.reducedMotion === true
+        reducedMotion: parsedSettings.reducedMotion === true,
+        layout: parsedSettings.layout === "side" ? "side" : "bottom"
       };
     }
   } catch (error) {
@@ -451,6 +341,10 @@ function bindEvents() {
       if (event.key === "Escape") closeLevelModal();
       return;
     }
+    if (!dom.settingsModal.classList.contains("hidden")) {
+      if (event.key === "Escape") closeSettingsModal();
+      return;
+    }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const key = normalizeKey(event);
     if (!key) return;
@@ -467,11 +361,18 @@ function bindEvents() {
     handleTypedKey(button.dataset.key);
   });
 
-  dom.levelSelectButton.addEventListener("click", openLevelModal);
+  dom.settingsButton.addEventListener("click", openSettingsModal);
   dom.endLevelSelectButton.addEventListener("click", openLevelModal);
   dom.restartButton.addEventListener("click", () => {
+    closeSettingsModal();
     initLevel(state.levelIndex, { playIntro: false });
   });
+  dom.openLevelFromSettings.addEventListener("click", () => {
+    closeSettingsModal();
+    openLevelModal();
+  });
+  dom.layoutBottomButton.addEventListener("click", () => setLayout("bottom"));
+  dom.layoutSideButton.addEventListener("click", () => setLayout("side"));
   dom.pauseButton.addEventListener("click", togglePause);
   dom.soundToggleButton.addEventListener("click", () => {
     state.save.settings.sound = !state.save.settings.sound;
@@ -492,6 +393,13 @@ function bindEvents() {
 
   dom.levelModal.addEventListener("click", (event) => {
     if (event.target === dom.levelModal) closeLevelModal();
+  });
+
+  dom.closeSettingsModal.addEventListener("click", closeSettingsModal);
+  dom.closeSettingsModalBottom.addEventListener("click", closeSettingsModal);
+
+  dom.settingsModal.addEventListener("click", (event) => {
+    if (event.target === dom.settingsModal) closeSettingsModal();
   });
 
   dom.endOverlay.addEventListener("click", (event) => {
@@ -518,7 +426,7 @@ function bindEvents() {
   dom.clearScoresButton.addEventListener("click", () => {
     const shouldClear = window.confirm("Clear all saved personal best times and locked-level progress?");
     if (!shouldClear) return;
-    state.save = { unlocked: 1, bestTimes: {} };
+    state.save = { unlocked: 1, bestTimes: {}, settings: state.save.settings };
     saveProgress();
     renderLevelModal();
     renderHud();
@@ -537,8 +445,16 @@ function bindEvents() {
 
 function applySettings() {
   document.body.classList.toggle("reduce-motion", reducedMotionEnabled());
+  document.body.dataset.layout = layoutMode();
   updateTopControls();
   if (!soundEnabled()) stopLevelMusic();
+}
+
+function setLayout(mode) {
+  state.save.settings.layout = mode === "side" ? "side" : "bottom";
+  saveProgress();
+  applySettings();
+  resizeRenderer();
 }
 
 function updateTopControls() {
@@ -547,6 +463,10 @@ function updateTopControls() {
 
   dom.motionToggleButton.textContent = reducedMotionEnabled() ? "Motion Low" : "Motion On";
   dom.motionToggleButton.setAttribute("aria-pressed", String(reducedMotionEnabled()));
+
+  const isSide = layoutMode() === "side";
+  dom.layoutBottomButton.setAttribute("aria-pressed", String(!isSide));
+  dom.layoutSideButton.setAttribute("aria-pressed", String(isSide));
 
   const canPause = state.mode === "playing";
   dom.pauseButton.disabled = !canPause;
@@ -1347,7 +1267,8 @@ function handleTypedKey(key) {
 }
 
 function pulsePanel(className) {
-  const panel = document.querySelector(".lesson-panel");
+  const panel = document.querySelector(".play-band");
+  if (!panel) return;
   panel.classList.remove("good-pop", "bad-shake");
   // Force the animation to restart.
   void panel.offsetWidth;
@@ -1630,6 +1551,15 @@ function openLevelModal() {
 
 function closeLevelModal() {
   dom.levelModal.classList.add("hidden");
+}
+
+function openSettingsModal() {
+  updateTopControls();
+  dom.settingsModal.classList.remove("hidden");
+}
+
+function closeSettingsModal() {
+  dom.settingsModal.classList.add("hidden");
 }
 
 function renderLevelModal() {
