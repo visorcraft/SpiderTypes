@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Vite build output and local-only overrides
+dist/
+*.local
+
+# Secrets / env
+.env
+.env.*
+*.pem
+*.key
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor cruft
+.DS_Store
+
+# Local agent instructions
+AGENTS.md
+
+# Peer-review scratch
+_review_diff.txt
+
+# Playwright MCP scratch output
+.playwright-mcp/

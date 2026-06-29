@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Itsy Bitsy Spider home-row typing game built with Three.js and browser localStorage."
+    />
+    <title>Spider Types — Help Spider Climb!</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <noscript>
+      <div class="no-script">
+        This typing game needs JavaScript enabled because it renders an interactive Three.js scene.
+      </div>
+    </noscript>
+
+    <div id="app" class="app-shell">
+      <section class="scene-shell" aria-label="Three dimensional Itsy Bitsy Spider game world">
+        <div id="sceneMount" class="scene-mount"></div>
+
+        <div class="scene-topbar">
+          <button id="levelSelectButton" class="button ghost" type="button">Level Selection</button>
+          <button id="skipIntroButton" class="button ghost subtle" type="button">Skip Intro</button>
+        </div>
+
+        <div id="cameraCaption" class="camera-caption" aria-live="polite">
+          Bird's-eye view: finding the water spout...
+        </div>
+      </section>
+
+      <aside class="lesson-panel" aria-label="Typing lesson panel">
+        <header class="lesson-header">
+          <p class="eyebrow">Spider Types</p>
+          <h1>Help Spider Climb!</h1>
+          <p id="lessonFocus" class="lesson-focus">Feel the F and J bumps.</p>
+        </header>
+
+        <div class="level-card">
+          <div>
+            <span id="levelLabel" class="level-label">Level 1 / 20</span>
+            <h2 id="levelTitle">F and J</h2>
+          </div>
+          <div class="score-stack" aria-label="Current level stats">
+            <span id="timerDisplay">0.00s</span>
+            <small id="bestDisplay">PB: --</small>
+          </div>
+        </div>
+
+        <section class="stats-row" aria-label="Typing stats">
+          <div>
+            <span id="mistakeCount">0</span>
+            <small>misses</small>
+          </div>
+          <div>
+            <span id="accuracyDisplay">100%</span>
+            <small>accuracy</small>
+          </div>
+          <div>
+            <span id="remainingDisplay">0</span>
+            <small>keys left</small>
+          </div>
+        </section>
+
+        <div class="progress-wrap" aria-label="Spider progress up the water spout">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <section class="target-card" aria-label="Current key to type">
+          <span class="target-label">Type this key</span>
+          <strong id="targetKey" class="target-key">f</strong>
+          <span id="feedback" class="feedback">Correct keys help the spider climb.</span>
+        </section>
+
+        <section class="lesson-text-card" aria-label="Lesson text">
+          <div id="lessonText" class="lesson-text"></div>
+        </section>
+
+        <section class="keyboard-card" aria-label="On screen keyboard. You can click keys or type on a physical keyboard.">
+          <div id="keyboard" class="keyboard"></div>
+        </section>
+
+        <p class="privacy-note">
+          Scores stay in this browser only. The game uses localStorage and makes no network requests while running.
+        </p>
+      </aside>
+    </div>
+
+    <div id="levelModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="levelModalTitle">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">Choose a climb</p>
+            <h2 id="levelModalTitle">Level Selection</h2>
+          </div>
+          <button id="closeLevelModal" class="button icon" type="button" aria-label="Close level selection">×</button>
+        </div>
+        <div id="levelGrid" class="level-grid"></div>
+        <div class="modal-footer">
+          <button id="clearScoresButton" class="button danger" type="button">Clear Saved Scores</button>
+          <button id="closeLevelModalBottom" class="button primary" type="button">Back to Game</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="endOverlay" class="end-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+      <div class="end-card">
+        <p id="endKicker" class="eyebrow">Washed out!</p>
+        <h2 id="endTitle">The spider reached the top.</h2>
+        <p id="endMessage">Down came the rain and washed the spider out.</p>
+        <div id="endStats" class="end-stats"></div>
+        <div class="end-actions">
+          <button id="retryButton" class="button secondary" type="button">Retry Level</button>
+          <button id="nextButton" class="button primary" type="button">Next Level</button>
+          <button id="endLevelSelectButton" class="button ghost" type="button">Level Selection</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
