@@ -119,7 +119,6 @@ const state = {
   celebrationStart: 0,
   lastFireworkAt: 0,
   lastFrameMs: 0,
-  wrongFlashTimer: 0,
   save: {
     unlocked: 1,
     bestTimes: {},
@@ -158,16 +157,8 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function easeOutCubic(t) {
-  return 1 - Math.pow(1 - t, 3);
 }
 
 function formatTime(ms) {
@@ -523,7 +514,6 @@ function buildKeyboard() {
 }
 
 function initThree() {
-  world.clock = new THREE.Clock();
   world.scene = new THREE.Scene();
   world.scene.background = new THREE.Color(0x0c1627);
   world.scene.fog = new THREE.Fog(0x0c1627, 11, 28);
@@ -572,7 +562,6 @@ function buildWorld() {
   world.materials.spoutDark = makeMaterial("spoutDark", { color: 0x6e7a80, roughness: 0.55, metalness: 0.2 });
   world.materials.ground = makeMaterial("ground", { color: 0x293923, roughness: 1 });
   world.materials.path = makeMaterial("path", { color: 0x453c2e, roughness: 1 });
-  world.materials.spider = makeMaterial("spider", { color: 0x2f262b, roughness: 0.85 });
   world.materials.eye = makeMaterial("eye", { color: 0xf6fbff, roughness: 0.3 });
   world.materials.pupil = makeMaterial("pupil", { color: 0x111111, roughness: 0.6 });
   world.materials.water = makeMaterial("water", { color: 0x54a9ff, transparent: true, opacity: 0.52, roughness: 0.25, metalness: 0.05 });
@@ -703,7 +692,6 @@ function buildHouse(scene) {
   house.add(chimneyTop);
 
   scene.add(house);
-  world.house = house;
 }
 
 function addWindow(parent, x, y, z, windowMat, trimMat) {
@@ -1183,7 +1171,6 @@ function initLevel(index, options = {}) {
   state.washStart = 0;
   state.celebrationStart = 0;
   state.lastFireworkAt = 0;
-  state.wrongFlashTimer = 0;
   state.mode = playIntro ? "intro" : "playing";
   state.introStart = performance.now();
   musicBox?.resetTypedMelody();
@@ -1254,7 +1241,6 @@ function handleTypedKey(key) {
     state.streak = 0;
     state.missedKeys[expected] = (state.missedKeys[expected] || 0) + 1;
     state.slipPenaltyChars = Math.min(lesson.length * 0.24, state.slipPenaltyChars + Math.max(1.2, lesson.length * 0.035));
-    state.wrongFlashTimer = performance.now();
     dom.feedback.className = "feedback bad";
     dom.feedback.textContent = `Oops. The spider slipped. Type ${displayChar(expected)} next.`;
     if (soundEnabled()) {
