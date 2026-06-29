@@ -1316,14 +1316,17 @@ function completeLevel() {
   state.visualProgress = 1;
   positionSpider(1);
 
-  if (state.levelIndex < LEVELS.length - 1) {
+  const levelId = currentLevel().id;
+  const isMilestone = levelId % 20 === 0;
+
+  if (isMilestone) {
+    startCelebration(now);
+  } else {
     state.mode = "preWash";
     state.preWashStart = now;
     dom.feedback.className = "feedback good";
     dom.feedback.textContent = "The spider reached the top. Clouds are gathering...";
     dom.cameraCaption.textContent = "The spider reached the roof, but the rain is coming.";
-  } else {
-    startCelebration(now);
   }
 
   renderHud();
@@ -1411,7 +1414,8 @@ function showEndOverlay(isFinal) {
     dom.endReview.classList.add("hidden");
   }
 
-  dom.nextButton.textContent = isFinal ? "Watch Celebration" : "Next Level";
+  const isLastLevel = state.levelIndex >= LEVELS.length - 1;
+  dom.nextButton.textContent = isLastLevel ? "Watch Celebration" : "Next Level";
   dom.endOverlay.classList.remove("hidden");
 }
 
