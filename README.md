@@ -75,10 +75,10 @@ Upload the generated `dist/` directory to any static web host. The shipped game 
 
 | Part | Details |
 |---|---|
-| **Lesson path** | 20 levels progress from F/J bump practice to full kid-friendly sentences. |
+| **Lesson path** | 100 levels progress from F/J bump practice to multi-paragraph kid-friendly stories. |
 | **Typing guide** | A Mavis Beacon-style keyboard highlights home-row keys, F/J bumps, and the current target. |
 | **Spider climb** | A Three.js baby spider climbs a slanted water spout as the player types accurately. |
-| **Level endings** | Levels 1-19 end with rain washing the spider down. Level 20 ends with roof friends and fireworks. |
+| **Level endings** | Most levels end with rain washing the spider down. Every 20th level ends with roof friends and fireworks. |
 | **Music** | A Tone.js Itsy Bitsy Spider music box starts from the first typed key and stops when the level ends. |
 | **Progress** | Best times and unlocked levels are saved in this browser only. |
 
@@ -122,7 +122,7 @@ Runtime privacy constraints:
 
 - **Vanilla JavaScript** - ES modules, no framework, no TypeScript.
 - **Vite** - Local dev server and static production bundling.
-- **Three.js 0.165.0** - 3D scene, camera, lighting, animation, and GLB loading.
+- **Three.js 0.185.0** - 3D scene, camera, lighting, animation, and GLB loading.
 - **Tone.js 15.x** - Browser music box and key feedback sounds.
 - **Browser localStorage** - Per-level best times and unlock state.
 
@@ -139,7 +139,8 @@ Runtime privacy constraints:
 | Path | Purpose |
 |---|---|
 | `index.html` | App shell and DOM for the scene, lesson panel, keyboard, and modals. |
-| `src/main.js` | Main game loop, levels, Three.js world, input handling, UI state, and persistence. |
+| `src/main.js` | Main game loop, Three.js world, input handling, UI state, and persistence. |
+| `src/levels.js` | All 100 typing levels. |
 | `src/spiderMusicBox.js` | Tone.js Itsy Bitsy Spider music box. |
 | `src/styles.css` | All application styling. |
 | `public/models/spider.glb` | Bundled local spider model. |
@@ -158,6 +159,17 @@ This repository intentionally keeps the game small:
 - No test suite, linter, typechecker, or CI.
 
 Verification is manual: run `npm run dev`, open the game in a browser, and play the affected level.
+
+---
+
+## Acknowledgements
+
+- **three.js** by mrdoob and contributors — 3D rendering.
+- **Tone.js** by Yotam Mann — browser audio synthesis.
+- **Vite** by Evan You and contributors — build tooling.
+- **Wrangler** by Cloudflare — Cloudflare Workers deployment.
+
+Third-party license texts are in [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ---
 
