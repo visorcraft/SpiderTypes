@@ -1,6 +1,6 @@
 {
   "name": "itsy-bitsy-spider-home-row",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "license": "GPL-3.0-only",
   "description": "A self-hostable Three.js typing game that teaches home row through an Itsy Bitsy Spider climb.",
