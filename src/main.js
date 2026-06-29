@@ -322,7 +322,10 @@ function bootstrap() {
   applySettings();
   initThree();
   buildWorld();
-  initLevel(0, { playIntro: true });
+  // Resume at the first not-yet-completed level (or the last level once all are done),
+  // so a reload drops you where you left off instead of back at level 1.
+  const resumeAt = LEVELS.findIndex((level) => !state.save.bestTimes[String(level.id)]);
+  initLevel(resumeAt === -1 ? LEVELS.length - 1 : resumeAt, { playIntro: true });
   requestAnimationFrame(animate);
 }
 
