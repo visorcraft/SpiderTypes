@@ -1488,6 +1488,7 @@ function renderHud() {
 function renderLessonText() {
   const lesson = currentText();
   let html = "";
+  let word = ""; // buffer the current word's char spans so whole words wrap together
   for (let i = 0; i < lesson.length; i += 1) {
     const ch = lesson[i];
     const classes = [];
@@ -1495,8 +1496,14 @@ function renderLessonText() {
     else if (i === state.charIndex) classes.push("current");
     else classes.push("upcoming");
     if (ch === " ") classes.push("space-char");
-    html += `<span class="${classes.join(" ")}" data-index="${i}" aria-label="${ch === " " ? "space" : htmlEscape(ch)}">${htmlEscape(displayLessonChar(ch))}</span>`;
+    word += `<span class="${classes.join(" ")}" data-index="${i}" aria-label="${ch === " " ? "space" : htmlEscape(ch)}">${htmlEscape(displayLessonChar(ch))}</span>`;
+    if (ch === " ") {
+      // The trailing space stays inside the word so it can't start a wrapped line.
+      html += `<span class="word">${word}</span>`;
+      word = "";
+    }
   }
+  if (word) html += `<span class="word">${word}</span>`;
   dom.lessonText.innerHTML = html;
   scrollCurrentCharacterIntoView();
 }

@@ -389,6 +389,15 @@ body[data-layout="side"] .play-band {
   text-align: center;
 }
 
+/* Group each word's character spans so lines break between words, not mid-word.
+   margin:0 resets the .lesson-text span rule above, which also matches this wrapper. */
+.lesson-text .word {
+  display: inline-block;
+  white-space: nowrap;
+  min-width: 0;
+  margin: 0;
+}
+
 .lesson-text .done {
   background: rgba(154, 255, 154, 0.16);
   color: #ccffcc;
